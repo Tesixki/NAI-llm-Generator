@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { IconTerminal } from './Icons'
 
 export interface LogItem {
   id: string
@@ -25,7 +26,12 @@ export function AgentLog({ items }: { items: LogItem[] }): React.JSX.Element {
   }, [items])
   return (
     <div className="log" ref={ref}>
-      {items.length === 0 && <div className="muted">指示を入力して「JSON 作成」を押すと、LLM とツール呼び出しの経過がここに表示されます。</div>}
+      {items.length === 0 && (
+        <div className="empty-state">
+          <IconTerminal width={28} height={28} />
+          <p>指示を入力して「JSON 作成」を押すと、LLM とツール呼び出しの経過がここに流れます。</p>
+        </div>
+      )}
       {items.map((it) => (
         <LogRow key={it.id} item={it} />
       ))}

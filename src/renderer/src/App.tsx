@@ -3,6 +3,24 @@ import type { AgentEvent, AppConfig, GeneratedImage, GenerateProgress, HistoryEn
 import { SettingsDialog } from './components/SettingsDialog'
 import { AgentLog, type LogItem } from './components/AgentLog'
 import { Gallery } from './components/Gallery'
+import {
+  IconBook,
+  IconBraces,
+  IconFolder,
+  IconImage,
+  IconInfinity,
+  IconLayers,
+  IconOpen,
+  IconPlay,
+  IconRefresh,
+  IconSave,
+  IconSettings,
+  IconSliders,
+  IconSparkles,
+  IconStop,
+  IconTerminal,
+  IconWand
+} from './components/Icons'
 
 const PROVIDER_LABELS: Record<ProviderId, string> = {
   anthropic: 'Claude API',
@@ -191,17 +209,24 @@ export default function App(): React.JSX.Element {
 
   const mcpOk = mcp.filter((m) => m.connected).length
   const mcpEnabled = mcp.filter((m) => m.enabled).length
+  const mcpState = mcpEnabled === 0 ? 'off' : mcpOk === mcpEnabled ? 'ok' : mcpOk > 0 ? 'warn' : 'bad'
   const busy = phase !== 'idle'
+  const d = cfg.generationDefaults
+  const currentFormat = formatList.find((f) => f.id === selectedFormat)
+  const presetCounts = [1, 3, 5, 10, 20]
 
   return (
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <span className="logo">NAI</span> LLM Generator
+          <span className="brand-mark">
+            <IconSparkles width={16} height={16} />
+          </span>
+          <span className="brand-name">NAI LLM Generator</span>
         </div>
-        <div className="topbar-controls">
-          <label className="inline">
-            <span>LLM</span>
+        <div className="topbar-right">
+          <div className="provider-pill">
+            <span className="pill-label">LLM</span>
             <select value={cfg.provider} onChange={(e) => void patchCfg({ provider: e.target.value as ProviderId })} disabled={busy}>
               {(Object.keys(PROVIDER_LABELS) as ProviderId[]).map((p) => (
                 <option key={p} value={p}>
@@ -209,171 +234,266 @@ export default function App(): React.JSX.Element {
                 </option>
               ))}
             </select>
-          </label>
-          <span className="model-name">{providerModel(cfg)}</span>
-          <button className="ghost" title="MCP サーバー再接続" onClick={() => void window.api.mcpReload()}>
-            <span className={`dot ${mcpOk === mcpEnabled && mcpEnabled > 0 ? 'ok' : mcpOk > 0 ? 'warn' : 'bad'}`} /> MCP {mcpOk}/{mcpEnabled}
+            <span className="pill-model">{providerModel(cfg)}</span>
+          </div>
+          <button className={`chip chip-${mcpState}`} title="MCP サーバー再接続" onClick={() => void window.api.mcpReload()}>
+            <span className="dot" />
+            MCP {mcpOk}/{mcpEnabled}
           </button>
-          <button className="ghost" onClick={() => setShowSettings(true)}>
-            ⚙ 設定
+          <button
+            className={`chip ${cfg.novelai.apiKey ? 'chip-ok' : 'chip-bad'}`}
+            title={cfg.novelai.apiKey ? 'NovelAI API キー設定済み' : 'NovelAI API キー未設定'}
+            onClick={() => setShowSettings(true)}
+          >
+            <span className="dot" />
+            NovelAI
+          </button>
+          <button className="icon-btn" title="設定" onClick={() => setShowSettings(true)}>
+            <IconSettings />
           </button>
         </div>
       </header>
 
       <div className="layout">
-        <aside className="panel left">
-          <h2>指示</h2>
-          <textarea
-            className="instruction"
-            placeholder={'例: ブルーアーカイブのアロナを、夜の教室で窓際に座って振り返っている構図で。制服姿、柔らかい光。3パターン欲しい。'}
-            value={instruction}
-            onChange={(e) => setInstruction(e.target.value)}
-            disabled={busy}
-          />
-          <div className="row">
-            <button className="primary" disabled={busy || !instruction.trim()} onClick={() => void runAgent(false)}>
-              {cfg.autoGenerate ? '▶ JSON 作成 → 画像生成' : '▶ JSON 作成'}
-            </button>
-            <button disabled={busy || !instruction.trim() || parsedJson === undefined} onClick={() => void runAgent(true)} title="現在の JSON を指示に従って修正">
-              ↻ JSON を修正
-            </button>
-            {busy && (
-              <button className="danger" onClick={cancel}>
-                ■ 中止
-              </button>
-            )}
-          </div>
-          <label className="check">
-            <input type="checkbox" checked={cfg.autoGenerate} onChange={(e) => void patchCfg({ autoGenerate: e.target.checked })} />
-            JSON 作成後に自動で NovelAI 生成
-          </label>
-          <div className="row repeat-row">
-            <span className="muted">生成回数</span>
-            <select value={infinite ? 'inf' : String(repeat)} onChange={(e) => (e.target.value === 'inf' ? setInfinite(true) : (setInfinite(false), setRepeat(Number(e.target.value))))} disabled={busy}>
-              {[1, 2, 3, 5, 10, 20, 50, 100].map((n) => (
-                <option key={n} value={n}>
-                  {n} 回
-                </option>
-              ))}
-              <option value="inf">∞ 無限</option>
-            </select>
-            <button className={infinite ? 'inf active' : 'inf'} onClick={() => setInfinite((v) => !v)} disabled={busy} title="止めるまで JSON を繰り返し生成 (2 回目以降は seed をランダム化)">
-              ∞
-            </button>
-            {loopInfo && (
-              <span className="progress">
-                ループ {loopInfo.i}
-                {loopInfo.total ? `/${loopInfo.total}` : ' / ∞'}
-              </span>
-            )}
-          </div>
-
-          <div className="section-head">
-            <h2>スキル</h2>
-            <div>
-              <button className="ghost small" onClick={() => void refreshSkills()}>
-                更新
-              </button>
-              <button className="ghost small" onClick={() => void window.api.openSkillsFolder('skill')}>
-                フォルダ
+        <aside className="column">
+          <section className="card">
+            <div className="card-head">
+              <IconWand className="card-icon" />
+              <h2>指示</h2>
+            </div>
+            <textarea
+              className="instruction"
+              placeholder="例: ブルーアーカイブのアロナを、夜の教室で窓際に座って振り返っている構図で。制服姿、柔らかい光。3 パターン欲しい。"
+              value={instruction}
+              onChange={(e) => setInstruction(e.target.value)}
+              disabled={busy}
+            />
+            <div className="action-row">
+              {busy ? (
+                <button className="btn btn-danger btn-lg" onClick={cancel}>
+                  <IconStop /> 中止
+                </button>
+              ) : (
+                <button className="btn btn-primary btn-lg" disabled={!instruction.trim()} onClick={() => void runAgent(false)}>
+                  <IconPlay /> {cfg.autoGenerate ? 'JSON 作成 → 画像生成' : 'JSON 作成'}
+                </button>
+              )}
+              <button className="btn btn-lg" disabled={busy || !instruction.trim() || parsedJson === undefined} onClick={() => void runAgent(true)} title="現在の JSON を指示に従って修正">
+                <IconRefresh /> 修正
               </button>
             </div>
-          </div>
-          <div className="skill-list">
-            {skillList.length === 0 && <div className="muted">skills フォルダに .md を置いてください</div>}
-            {skillList.map((s) => (
-              <label key={s.id} className="check skill" title={s.description}>
-                <input
-                  type="checkbox"
-                  checked={cfg.selectedSkills.includes(s.id)}
-                  onChange={(e) => {
-                    const next = e.target.checked ? [...cfg.selectedSkills, s.id] : cfg.selectedSkills.filter((x) => x !== s.id)
-                    void patchCfg({ selectedSkills: next })
-                  }}
-                />
-                <span>
-                  <b>{s.name}</b>
-                  <small>{s.description}</small>
-                </span>
-              </label>
-            ))}
-          </div>
-
-          <div className="section-head">
-            <h2>フォーマット</h2>
-            <button className="ghost small" onClick={() => void window.api.openSkillsFolder('format')}>
-              フォルダ
-            </button>
-          </div>
-          <select value={selectedFormat} onChange={(e) => void patchCfg({ selectedFormat: e.target.value })}>
-            {formatList.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-              </option>
-            ))}
-          </select>
-          {formatList.find((f) => f.id === selectedFormat) && <div className="muted small-text">{formatList.find((f) => f.id === selectedFormat)?.description}</div>}
-
-          <div className="section-head">
-            <h2>生成デフォルト</h2>
-            <button className="ghost small" onClick={() => setShowSettings(true)}>
-              変更
-            </button>
-          </div>
-          <div className="muted small-text defaults-summary">
-            {cfg.generationDefaults.model} · {cfg.generationDefaults.size} · {cfg.generationDefaults.steps} steps · scale {cfg.generationDefaults.scale} · {cfg.generationDefaults.sampler} · UC {cfg.generationDefaults.uc_preset} · {cfg.generationDefaults.n_samples} 枚
-          </div>
-        </aside>
-
-        <main className="panel center">
-          <div className="tabs">
-            <button className={tab === 'log' ? 'active' : ''} onClick={() => setTab('log')}>
-              ログ
-            </button>
-            <button className={tab === 'json' ? 'active' : ''} onClick={() => setTab('json')}>
-              JSON {jsonError && <span className="badge bad">!</span>}
-            </button>
-            <div className="spacer" />
-            {progress && (
-              <span className="progress">
-                {progress.index + 1}/{progress.total} {progress.name}
-              </span>
+            {busy && (
+              <div className="status-line">
+                <span className="spinner" />
+                {phase === 'agent' ? 'LLM が JSON を作成中…' : progress ? `生成中 ${progress.index + 1}/${progress.total} ${progress.name}` : '画像を生成中…'}
+                {loopInfo && (
+                  <span className="status-loop">
+                    ループ {loopInfo.i}
+                    {loopInfo.total ? ` / ${loopInfo.total}` : ' / ∞'}
+                  </span>
+                )}
+              </div>
             )}
-          </div>
-          {tab === 'log' ? (
-            <AgentLog items={log} />
-          ) : (
-            <div className="json-pane">
-              <textarea className="json-editor" spellCheck={false} value={jsonText} onChange={(e) => setJsonText(e.target.value)} placeholder="LLM が生成した JSON がここに入ります。直接編集もできます。" />
-              <div className="row json-actions">
-                {jsonError ? <span className="error-text">JSON エラー: {jsonError}</span> : <span className="muted">{parsedJson ? describeJson(parsedJson) : ''}</span>}
-                <div className="spacer" />
-                <button
-                  onClick={() =>
-                    void window.api.pickJson().then((r) => {
-                      if (r) setJsonText(r.text)
-                    })
-                  }
-                  disabled={busy}
-                >
-                  開く
-                </button>
-                <button onClick={() => void window.api.saveJson(jsonText)} disabled={!jsonText}>
-                  保存
-                </button>
-                <button className="primary" disabled={busy || parsedJson === undefined} onClick={() => void runGenerate(parsedJson, instruction)}>
-                  ▶ この JSON で生成
+          </section>
+
+          <section className="card">
+            <div className="card-head">
+              <IconSliders className="card-icon" />
+              <h2>実行オプション</h2>
+            </div>
+            <label className="switch-row">
+              <span>JSON 作成後に自動で画像生成</span>
+              <span className={`switch ${cfg.autoGenerate ? 'on' : ''}`}>
+                <input type="checkbox" checked={cfg.autoGenerate} onChange={(e) => void patchCfg({ autoGenerate: e.target.checked })} />
+                <span className="knob" />
+              </span>
+            </label>
+            <div className="option-row">
+              <span>生成回数</span>
+              <div className="segmented">
+                {presetCounts.map((n) => (
+                  <button
+                    key={n}
+                    className={!infinite && repeat === n ? 'active' : ''}
+                    disabled={busy}
+                    onClick={() => {
+                      setInfinite(false)
+                      setRepeat(n)
+                    }}
+                  >
+                    {n}
+                  </button>
+                ))}
+                <button className={infinite ? 'active inf' : 'inf'} disabled={busy} onClick={() => setInfinite((v) => !v)} title="止めるまで繰り返し生成 (2 回目以降は seed をランダム化)">
+                  <IconInfinity width={18} height={18} />
                 </button>
               </div>
             </div>
-          )}
+            <div className="option-row">
+              <span>回数を直接指定</span>
+              <input
+                className="num-input"
+                type="number"
+                min={1}
+                max={999}
+                value={repeat}
+                disabled={busy || infinite}
+                onChange={(e) => setRepeat(Math.max(1, Math.min(999, Number(e.target.value) || 1)))}
+              />
+            </div>
+          </section>
+
+          <section className="card">
+            <div className="card-head">
+              <IconBook className="card-icon" />
+              <h2>スキル</h2>
+              <span className="count">
+                {cfg.selectedSkills.filter((id) => skillList.some((s) => s.id === id)).length}/{skillList.length}
+              </span>
+              <div className="card-tools">
+                <button className="icon-btn sm" title="一覧を更新" onClick={() => void refreshSkills()}>
+                  <IconRefresh width={14} height={14} />
+                </button>
+                <button className="icon-btn sm" title="フォルダを開く" onClick={() => void window.api.openSkillsFolder('skill')}>
+                  <IconFolder width={14} height={14} />
+                </button>
+              </div>
+            </div>
+            <div className="list">
+              {skillList.length === 0 && <div className="empty">skills フォルダに .md を置くとここに出ます</div>}
+              {skillList.map((s) => {
+                const on = cfg.selectedSkills.includes(s.id)
+                return (
+                  <label key={s.id} className={`list-item ${on ? 'on' : ''}`} title={s.description}>
+                    <span className={`switch sm ${on ? 'on' : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={(e) => {
+                          const next = e.target.checked ? [...cfg.selectedSkills, s.id] : cfg.selectedSkills.filter((x) => x !== s.id)
+                          void patchCfg({ selectedSkills: next })
+                        }}
+                      />
+                      <span className="knob" />
+                    </span>
+                    <span className="list-text">
+                      <b>{s.name}</b>
+                      <small>{s.description}</small>
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          </section>
+
+          <section className="card">
+            <div className="card-head">
+              <IconLayers className="card-icon" />
+              <h2>出力フォーマット</h2>
+              <div className="card-tools">
+                <button className="icon-btn sm" title="フォルダを開く" onClick={() => void window.api.openSkillsFolder('format')}>
+                  <IconFolder width={14} height={14} />
+                </button>
+              </div>
+            </div>
+            <select className="select" value={selectedFormat} onChange={(e) => void patchCfg({ selectedFormat: e.target.value })}>
+              {formatList.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+            {currentFormat && <div className="hint">{currentFormat.description}</div>}
+          </section>
+
+          <section className="card">
+            <div className="card-head">
+              <IconImage className="card-icon" />
+              <h2>生成デフォルト</h2>
+              <div className="card-tools">
+                <button className="btn btn-xs" onClick={() => setShowSettings(true)}>
+                  変更
+                </button>
+              </div>
+            </div>
+            <div className="chips">
+              <span className="tag accent">{shortModel(d.model)}</span>
+              <span className="tag">{d.size}</span>
+              <span className="tag">{d.steps} steps</span>
+              <span className="tag">scale {d.scale}</span>
+              <span className="tag">{d.sampler}</span>
+              <span className="tag">UC {d.uc_preset}</span>
+              <span className="tag">{d.n_samples} 枚</span>
+            </div>
+          </section>
+        </aside>
+
+        <main className="column">
+          <section className="card fill">
+            <div className="tabbar">
+              <button className={`tab ${tab === 'log' ? 'active' : ''}`} onClick={() => setTab('log')}>
+                <IconTerminal width={14} height={14} /> ログ
+              </button>
+              <button className={`tab ${tab === 'json' ? 'active' : ''}`} onClick={() => setTab('json')}>
+                <IconBraces width={14} height={14} /> JSON
+                {jsonError && <span className="badge bad">!</span>}
+              </button>
+              <div className="spacer" />
+              {tab === 'log' && log.length > 0 && (
+                <button
+                  className="btn btn-xs"
+                  onClick={() => {
+                    logRef.current = []
+                    setLog([])
+                  }}
+                >
+                  クリア
+                </button>
+              )}
+            </div>
+            {tab === 'log' ? (
+              <AgentLog items={log} />
+            ) : (
+              <div className="json-pane">
+                <textarea className="json-editor" spellCheck={false} value={jsonText} onChange={(e) => setJsonText(e.target.value)} placeholder="LLM が生成した JSON がここに入ります。直接編集もできます。" />
+                <div className="toolbar">
+                  {jsonError ? <span className="error-text">JSON エラー: {jsonError}</span> : <span className="hint">{parsedJson ? describeJson(parsedJson) : 'JSON はまだありません'}</span>}
+                  <div className="spacer" />
+                  <button
+                    className="btn btn-sm"
+                    onClick={() =>
+                      void window.api.pickJson().then((r) => {
+                        if (r) setJsonText(r.text)
+                      })
+                    }
+                    disabled={busy}
+                  >
+                    <IconOpen width={14} height={14} /> 開く
+                  </button>
+                  <button className="btn btn-sm" onClick={() => void window.api.saveJson(jsonText)} disabled={!jsonText}>
+                    <IconSave width={14} height={14} /> 保存
+                  </button>
+                  <button className="btn btn-primary btn-sm" disabled={busy || parsedJson === undefined} onClick={() => void runGenerate(parsedJson, instruction)}>
+                    <IconPlay width={14} height={14} /> この JSON で生成
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
         </main>
 
-        <aside className="panel right">
-          <Gallery images={images} history={history} onClearHistory={() => void window.api.historyClear().then(refreshHistory)} onLoadJson={(j) => {
-            setJsonText(JSON.stringify(j, null, 2))
-            setTab('json')
-          }} />
+        <aside className="column">
+          <section className="card fill">
+            <Gallery
+              images={images}
+              history={history}
+              onClearHistory={() => void window.api.historyClear().then(refreshHistory)}
+              onLoadJson={(j) => {
+                setJsonText(JSON.stringify(j, null, 2))
+                setTab('json')
+              }}
+            />
+          </section>
         </aside>
       </div>
 
@@ -390,6 +510,15 @@ export default function App(): React.JSX.Element {
       )}
     </div>
   )
+}
+
+function shortModel(m: string): string {
+  return m
+    .replace('nai-diffusion-', 'NAI V')
+    .replace('4-5', '4.5')
+    .replace('-full', ' Full')
+    .replace('-curated', ' Curated')
+    .replace('-furry', ' Furry')
 }
 
 function providerModel(cfg: AppConfig): string {

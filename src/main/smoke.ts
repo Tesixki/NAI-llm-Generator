@@ -24,7 +24,7 @@ export async function runSmoke(win: BrowserWindow, mcpReady: Promise<void>): Pro
 
     if (process.env.NAI_SMOKE_SETTINGS) {
       // open 設定 → 画像生成デフォルト and screenshot it
-      await win.webContents.executeJavaScript(`[...document.querySelectorAll('button')].find(b => b.textContent.includes('設定'))?.click()`)
+      await win.webContents.executeJavaScript(`document.querySelector('button[title="設定"]')?.click()`)
       await new Promise((r) => setTimeout(r, 500))
       await win.webContents.executeJavaScript(`[...document.querySelectorAll('.modal-side button')].find(b => b.textContent.includes('画像生成'))?.click()`)
       await new Promise((r) => setTimeout(r, 500))
