@@ -69,6 +69,7 @@ export async function runGeneration(cfg: AppConfig, opts: GenerateOptions): Prom
       const converted = await convertRequest(item.request, {
         baseDir,
         client,
+        defaults: cfg.generationDefaults,
         log: (m) => opts.onProgress?.({ jobId, index: i, total: items.length, name: item.name, status: 'start', message: m })
       })
       const blobs = await client.generateImage(converted.payload)

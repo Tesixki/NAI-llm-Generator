@@ -7,6 +7,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { Jimp } from 'jimp'
 import type { NovelAIClient } from './client'
+import type { GenerationDefaults } from '@shared/types'
+import { DEFAULT_CONFIG } from '@shared/defaults'
 
 export const SIZE_PRESETS: Record<string, [number, number]> = {
   portrait: [832, 1216],
@@ -78,6 +80,8 @@ export interface ConvertContext {
   baseDir: string
   client: NovelAIClient
   log?: (msg: string) => void
+  /** app-level defaults for fields the request omits */
+  defaults?: GenerationDefaults
 }
 
 export interface ConvertedRequest {
@@ -109,8 +113,10 @@ export function resolveSize(size: UserRequest['size']): [number, number] {
   if (!size) return SIZE_PRESETS.portrait
   if (typeof size === 'string') {
     const p = SIZE_PRESETS[size]
-    if (!p) throw new Error(`Unknown size preset: ${size}`)
-    return p
+    if (p) return p
+    const m = size.trim().match(/^(\d+)\s*[x×*]\s*(\d+)$/i)
+    if (m) return resolveSize([Number(m[1]), Number(m[2])])
+    throw new Error(`Unknown size preset: ${size}`)
   }
   const [w, h] = size
   if (!Number.isInteger(w) || !Number.isInteger(h) || w < 64 || h < 64) throw new Error(`Invalid size: ${JSON.stringify(size)}`)
@@ -218,15 +224,16 @@ export async function convertRequest(input: UserRequest, ctx: ConvertContext): P
   const req = stripComments(input)
   if (!req.prompt || typeof req.prompt !== 'string') throw new Error('"prompt" is required')
 
-  const model = req.model ?? 'nai-diffusion-4-5-full'
-  const [width, height] = resolveSize(req.size)
-  const quality = req.quality ?? true
-  const ucPreset = req.uc_preset ?? 'light'
+  const d = ctx.defaults ?? DEFAULT_CONFIG.generationDefaults
+  const model = req.model ?? d.model
+  const [width, height] = resolveSize(req.size ?? d.size)
+  const quality = req.quality ?? d.quality
+  const ucPreset = req.uc_preset ?? d.uc_preset
   if (!(ucPreset in UC_PRESET_INDEX)) throw new Error(`Unknown uc_preset: ${ucPreset}`)
   const seed = req.seed && req.seed > 0 ? req.seed : randomSeed()
 
   const prompt = quality ? req.prompt + QUALITY_TAGS : req.prompt
-  const negative = (req.negative_prompt ?? '') + UC_PRESETS[ucPreset]
+  const negative = (req.negative_prompt ?? d.negative_prompt ?? '') + UC_PRESETS[ucPreset]
 
   const characters = (req.characters ?? []).map((c) => ({
     prompt: c.prompt,
@@ -240,10 +247,10 @@ export async function convertRequest(input: UserRequest, ctx: ConvertContext): P
     params_version: 3,
     width,
     height,
-    scale: req.scale ?? 5.0,
-    sampler: req.sampler ?? 'k_euler_ancestral',
-    steps: req.steps ?? 23,
-    n_samples: req.n_samples ?? 1,
+    scale: req.scale ?? d.scale,
+    sampler: req.sampler ?? d.sampler,
+    steps: req.steps ?? d.steps,
+    n_samples: req.n_samples ?? d.n_samples,
     ucPreset: UC_PRESET_INDEX[ucPreset],
     qualityToggle: quality,
     autoSmea: false,
@@ -255,9 +262,9 @@ export async function convertRequest(input: UserRequest, ctx: ConvertContext): P
     legacy_uc: false,
     legacy_v3_extend: false,
     add_original_image: false,
-    cfg_rescale: req.cfg_rescale ?? 0,
-    noise_schedule: req.noise_schedule ?? 'karras',
-    skip_cfg_above_sigma: req.variety_boost ? 58 : null,
+    cfg_rescale: req.cfg_rescale ?? d.cfg_rescale,
+    noise_schedule: req.noise_schedule ?? d.noise_schedule,
+    skip_cfg_above_sigma: (req.variety_boost ?? d.variety_boost) ? 58 : null,
     deliberate_euler_ancestral_bug: false,
     prefer_brownian: true,
     use_coords: false,

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { AppConfig, McpServerConfig, McpServerStatus } from '@shared/types'
+import type { AppConfig, GenerationDefaults, McpServerConfig, McpServerStatus } from '@shared/types'
+import { NAI_MODELS, NAI_NOISE_SCHEDULES, NAI_SAMPLERS, NAI_SIZE_PRESETS, NAI_UC_PRESETS } from '@shared/defaults'
 
 interface Props {
   cfg: AppConfig
@@ -8,7 +9,17 @@ interface Props {
   onSave: (patch: Partial<AppConfig>) => Promise<void>
 }
 
-type Section = 'llm' | 'novelai' | 'mcp' | 'paths'
+type Section = 'llm' | 'novelai' | 'generation' | 'mcp' | 'paths'
+
+const SIZE_LABELS: Record<string, string> = {
+  portrait: '縦長 832×1216',
+  landscape: '横長 1216×832',
+  square: '正方形 1024×1024',
+  large_portrait: '縦長 (大) 1024×1536',
+  large_landscape: '横長 (大) 1536×1024',
+  wallpaper_portrait: '壁紙 縦 1088×1920',
+  wallpaper_landscape: '壁紙 横 1920×1088'
+}
 
 export function SettingsDialog({ cfg, mcp, onClose, onSave }: Props): React.JSX.Element {
   const [draft, setDraft] = useState<AppConfig>(() => structuredClone(cfg))
@@ -53,6 +64,7 @@ export function SettingsDialog({ cfg, mcp, onClose, onSave }: Props): React.JSX.
             [
               ['llm', 'LLM プロバイダ'],
               ['novelai', 'NovelAI'],
+              ['generation', '画像生成デフォルト'],
               ['mcp', 'MCP サーバー'],
               ['paths', 'フォルダ / その他']
             ] as [Section, string][]
@@ -160,6 +172,8 @@ export function SettingsDialog({ cfg, mcp, onClose, onSave }: Props): React.JSX.
             </>
           )}
 
+          {section === 'generation' && <GenerationDefaultsForm value={draft.generationDefaults} onChange={(v) => set('generationDefaults', v)} />}
+
           {section === 'mcp' && (
             <>
               <h3>内蔵 Danbooru ツール</h3>
@@ -212,6 +226,99 @@ export function SettingsDialog({ cfg, mcp, onClose, onSave }: Props): React.JSX.
       </div>
     </div>
   )
+}
+
+function GenerationDefaultsForm({ value, onChange }: { value: GenerationDefaults; onChange: (v: GenerationDefaults) => void }): React.JSX.Element {
+  const upd = <K extends keyof GenerationDefaults>(key: K, v: GenerationDefaults[K]): void => onChange({ ...value, [key]: v })
+  const isPreset = value.size in NAI_SIZE_PRESETS
+  const custom = !isPreset ? value.size.match(/^(\d+)\s*[x×]\s*(\d+)$/) : null
+  const cw = custom ? Number(custom[1]) : 832
+  const ch = custom ? Number(custom[2]) : 1216
+  return (
+    <>
+      <h3>画像生成デフォルト</h3>
+      <p className="muted">LLM が出力した JSON で省略されたキーに適用される値です。JSON 側で明示された値が常に優先されます。LLM にもこのデフォルトが伝えられます。</p>
+      <Field label="モデル">
+        <input value={value.model} onChange={(e) => upd('model', e.target.value)} list="nai-models" />
+        <datalist id="nai-models">
+          {NAI_MODELS.map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
+      </Field>
+      <Field label="解像度">
+        <div className="row">
+          <select value={isPreset ? value.size : 'custom'} onChange={(e) => upd('size', e.target.value === 'custom' ? `${cw}x${ch}` : e.target.value)}>
+            {Object.keys(NAI_SIZE_PRESETS).map((k) => (
+              <option key={k} value={k}>
+                {SIZE_LABELS[k] ?? k}
+              </option>
+            ))}
+            <option value="custom">カスタム</option>
+          </select>
+          {!isPreset && (
+            <>
+              <input type="number" step={64} min={64} max={2048} value={cw} onChange={(e) => upd('size', `${e.target.value}x${ch}`)} style={{ width: 90 }} />
+              <span>×</span>
+              <input type="number" step={64} min={64} max={2048} value={ch} onChange={(e) => upd('size', `${cw}x${e.target.value}`)} style={{ width: 90 }} />
+            </>
+          )}
+        </div>
+      </Field>
+      <Field label="Steps (1〜50)">
+        <input type="number" min={1} max={50} value={value.steps} onChange={(e) => upd('steps', clamp(Number(e.target.value), 1, 50))} />
+      </Field>
+      <Field label="Scale / CFG (0〜10)">
+        <input type="number" min={0} max={10} step={0.1} value={value.scale} onChange={(e) => upd('scale', clamp(Number(e.target.value), 0, 10))} />
+      </Field>
+      <Field label="サンプラー">
+        <select value={value.sampler} onChange={(e) => upd('sampler', e.target.value)}>
+          {NAI_SAMPLERS.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="ノイズスケジュール">
+        <select value={value.noise_schedule} onChange={(e) => upd('noise_schedule', e.target.value)}>
+          {NAI_NOISE_SCHEDULES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="UC プリセット">
+        <select value={value.uc_preset} onChange={(e) => upd('uc_preset', e.target.value)}>
+          {NAI_UC_PRESETS.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="共通ネガティブ">
+        <input value={value.negative_prompt} onChange={(e) => upd('negative_prompt', e.target.value)} placeholder="JSON に negative_prompt が無いときに使う (UC プリセットと結合)" />
+      </Field>
+      <Field label="1 リクエストの枚数 (1〜8)">
+        <input type="number" min={1} max={8} value={value.n_samples} onChange={(e) => upd('n_samples', clamp(Number(e.target.value), 1, 8))} />
+      </Field>
+      <Field label="CFG Rescale (0〜1)">
+        <input type="number" min={0} max={1} step={0.05} value={value.cfg_rescale} onChange={(e) => upd('cfg_rescale', clamp(Number(e.target.value), 0, 1))} />
+      </Field>
+      <Field label="品質タグ自動付与">
+        <input type="checkbox" checked={value.quality} onChange={(e) => upd('quality', e.target.checked)} style={{ width: 'auto' }} />
+      </Field>
+      <Field label="Variety Boost">
+        <input type="checkbox" checked={value.variety_boost} onChange={(e) => upd('variety_boost', e.target.checked)} style={{ width: 'auto' }} />
+      </Field>
+    </>
+  )
+}
+
+function clamp(n: number, lo: number, hi: number): number {
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }): React.JSX.Element {

@@ -589,3 +589,9 @@ button.inf.active {
   border-color: var(--accent-2);
   color: #fff;
 }
+
+.defaults-summary {
+  font-family: var(--mono);
+  line-height: 1.5;
+  word-break: break-all;
+}

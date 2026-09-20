@@ -313,6 +313,16 @@ export default function App(): React.JSX.Element {
             ))}
           </select>
           {formatList.find((f) => f.id === selectedFormat) && <div className="muted small-text">{formatList.find((f) => f.id === selectedFormat)?.description}</div>}
+
+          <div className="section-head">
+            <h2>生成デフォルト</h2>
+            <button className="ghost small" onClick={() => setShowSettings(true)}>
+              変更
+            </button>
+          </div>
+          <div className="muted small-text defaults-summary">
+            {cfg.generationDefaults.model} · {cfg.generationDefaults.size} · {cfg.generationDefaults.steps} steps · scale {cfg.generationDefaults.scale} · {cfg.generationDefaults.sampler} · UC {cfg.generationDefaults.uc_preset} · {cfg.generationDefaults.n_samples} 枚
+          </div>
         </aside>
 
         <main className="panel center">

@@ -31,6 +31,7 @@ export interface AppConfig {
   novelai: { apiKey: string; imageBase: string; timeoutSec: number }
   /** optional Danbooru credentials for the built-in Danbooru tools (raises rate limits) */
   danbooru: { login: string; apiKey: string }
+  generationDefaults: GenerationDefaults
   outputDir: string
   skillsDir: string
   formatsDir: string
@@ -41,6 +42,23 @@ export interface AppConfig {
   selectedSkills: string[]
   selectedFormat: string
   language: 'ja' | 'en'
+}
+
+/** Defaults applied to every generation request field the JSON leaves out */
+export interface GenerationDefaults {
+  model: string
+  /** preset name (portrait / landscape / square / ...) or "WIDTHxHEIGHT" */
+  size: string
+  steps: number
+  scale: number
+  sampler: string
+  noise_schedule: string
+  uc_preset: string
+  quality: boolean
+  n_samples: number
+  cfg_rescale: number
+  variety_boost: boolean
+  negative_prompt: string
 }
 
 export interface SkillInfo {
