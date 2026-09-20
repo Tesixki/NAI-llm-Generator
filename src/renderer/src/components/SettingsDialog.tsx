@@ -11,6 +11,18 @@ interface Props {
 
 type Section = 'llm' | 'novelai' | 'generation' | 'mcp' | 'paths'
 
+const MODEL_LABELS: Record<string, string> = {
+  'nai-diffusion-5-full': 'NAI Diffusion V5 Full',
+  'nai-diffusion-5-curated': 'NAI Diffusion V5 Curated',
+  'nai-diffusion-4-5-full': 'NAI Diffusion V4.5 Full',
+  'nai-diffusion-4-5-curated': 'NAI Diffusion V4.5 Curated',
+  'nai-diffusion-4-full': 'NAI Diffusion V4 Full',
+  'nai-diffusion-4-curated': 'NAI Diffusion V4 Curated',
+  'nai-diffusion-3': 'NAI Diffusion V3 (Anime)',
+  'nai-diffusion-3-furry': 'NAI Diffusion V3 (Furry)'
+}
+const CLAUDE_MODELS = ['claude-fable-5-1', 'claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5-20251001'] as const
+
 const SIZE_LABELS: Record<string, string> = {
   portrait: '縦長 832×1216',
   landscape: '横長 1216×832',
@@ -92,13 +104,7 @@ export function SettingsDialog({ cfg, mcp, onClose, onSave }: Props): React.JSX.
                 <input type="password" value={draft.anthropic.apiKey} onChange={(e) => setSub('anthropic', { apiKey: e.target.value })} placeholder="sk-ant-..." />
               </Field>
               <Field label="モデル">
-                <input value={draft.anthropic.model} onChange={(e) => setSub('anthropic', { model: e.target.value })} list="claude-models" />
-                <datalist id="claude-models">
-                  <option value="claude-fable-5-1" />
-                  <option value="claude-opus-5" />
-                  <option value="claude-sonnet-5" />
-                  <option value="claude-haiku-4-5-20251001" />
-                </datalist>
+                <ModelSelect value={draft.anthropic.model} options={CLAUDE_MODELS} onChange={(m) => setSub('anthropic', { model: m })} />
               </Field>
               <Field label="Base URL (任意)">
                 <input value={draft.anthropic.baseUrl} onChange={(e) => setSub('anthropic', { baseUrl: e.target.value })} placeholder="https://api.anthropic.com" />
@@ -239,12 +245,7 @@ function GenerationDefaultsForm({ value, onChange }: { value: GenerationDefaults
       <h3>画像生成デフォルト</h3>
       <p className="muted">LLM が出力した JSON で省略されたキーに適用される値です。JSON 側で明示された値が常に優先されます。LLM にもこのデフォルトが伝えられます。</p>
       <Field label="モデル">
-        <input value={value.model} onChange={(e) => upd('model', e.target.value)} list="nai-models" />
-        <datalist id="nai-models">
-          {NAI_MODELS.map((m) => (
-            <option key={m} value={m} />
-          ))}
-        </datalist>
+        <ModelSelect value={value.model} options={NAI_MODELS} labels={MODEL_LABELS} onChange={(m) => upd('model', m)} />
       </Field>
       <Field label="解像度">
         <div className="row">
@@ -314,6 +315,45 @@ function GenerationDefaultsForm({ value, onChange }: { value: GenerationDefaults
         <input type="checkbox" checked={value.variety_boost} onChange={(e) => upd('variety_boost', e.target.checked)} style={{ width: 'auto' }} />
       </Field>
     </>
+  )
+}
+
+/** Dropdown of known ids plus a "custom" entry that reveals a free-text input */
+function ModelSelect({
+  value,
+  options,
+  labels,
+  onChange
+}: {
+  value: string
+  options: readonly string[]
+  labels?: Record<string, string>
+  onChange: (v: string) => void
+}): React.JSX.Element {
+  const known = options.includes(value)
+  const [custom, setCustom] = useState(!known)
+  const showCustom = custom || !known
+  return (
+    <div className="row">
+      <select
+        value={showCustom ? '__custom__' : value}
+        onChange={(e) => {
+          if (e.target.value === '__custom__') setCustom(true)
+          else {
+            setCustom(false)
+            onChange(e.target.value)
+          }
+        }}
+      >
+        {options.map((m) => (
+          <option key={m} value={m}>
+            {labels?.[m] ? `${labels[m]} (${m})` : m}
+          </option>
+        ))}
+        <option value="__custom__">カスタム (ID を直接入力)</option>
+      </select>
+      {showCustom && <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="model id" />}
+    </div>
   )
 }
 

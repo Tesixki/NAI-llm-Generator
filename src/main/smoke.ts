@@ -22,6 +22,18 @@ export async function runSmoke(win: BrowserWindow, mcpReady: Promise<void>): Pro
     fs.writeFileSync(path.join(dir, 'smoke.png'), img.toPNG())
     console.log('[smoke] screenshot saved')
 
+    if (process.env.NAI_SMOKE_SETTINGS) {
+      // open 設定 → 画像生成デフォルト and screenshot it
+      await win.webContents.executeJavaScript(`[...document.querySelectorAll('button')].find(b => b.textContent.includes('設定'))?.click()`)
+      await new Promise((r) => setTimeout(r, 500))
+      await win.webContents.executeJavaScript(`[...document.querySelectorAll('.modal-side button')].find(b => b.textContent.includes('画像生成'))?.click()`)
+      await new Promise((r) => setTimeout(r, 500))
+      await win.webContents.executeJavaScript(`document.querySelector('.modal-body select')?.focus()`)
+      await new Promise((r) => setTimeout(r, 300))
+      fs.writeFileSync(path.join(dir, 'settings.png'), (await win.webContents.capturePage()).toPNG())
+      const opts = await win.webContents.executeJavaScript(`[...document.querySelector('.modal-body select').options].map(o => o.value).join(', ')`)
+      console.log('[smoke] model options:', opts)
+    }
     const tools = mcpManager.allTools()
     console.log('[smoke] tools:', tools.map((t) => t.id).join(', '))
     const wiki = tools.find((t) => t.name === 'get_wiki_info')
