@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { version as pkgVersion } from '../../package.json'
 import fs from 'node:fs'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -44,7 +45,7 @@ export function registerIpc(): void {
     }
     return next
   })
-  ipcMain.handle('app:paths', () => ({ userData: userDataDir(), config: configPath(), version: app.getVersion() }))
+  ipcMain.handle('app:paths', () => ({ userData: userDataDir(), config: configPath(), version: app.isPackaged ? app.getVersion() : pkgVersion }))
 
   ipcMain.handle('skills:list', () => listSkills())
   ipcMain.handle('skills:openFolder', (_e, kind: 'skill' | 'format') => openSkillsFolder(kind))

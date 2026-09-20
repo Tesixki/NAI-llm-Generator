@@ -84,6 +84,7 @@ function listDir(dir: string, kind: 'skill' | 'format'): SkillInfo[] {
   if (!fs.existsSync(dir)) return []
   const out: SkillInfo[] = []
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith('.')) continue // .bundled.json manifest, editor swap files, ...
     let file: string | null = null
     let id = entry.name
     if (entry.isDirectory()) {
