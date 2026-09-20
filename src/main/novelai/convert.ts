@@ -68,6 +68,10 @@ export interface UserRequest {
   cfg_rescale?: number
   variety_boost?: boolean
   image_format?: 'png' | 'webp'
+  /** V5 only: straight (non-premultiplied) alpha channel output */
+  straight_alpha?: boolean
+  /** V5 only: hint that the image should have a transparent background */
+  tag_hint_transparent_background?: boolean
   characters?: UserCharacter[]
   character_references?: UserCharacterReference[]
   controlnet?: { images: UserControlNetImage[]; strength?: number }
@@ -105,8 +109,21 @@ export function stripComments<T>(value: T): T {
   return value
 }
 
+/** V4 / V4.5 / V5 all use the v4_prompt caption structure */
 export function isV4(model: string): boolean {
   return !/diffusion-3/.test(model)
+}
+export function isV5(model: string): boolean {
+  return /diffusion-5/.test(model)
+}
+export function isV45(model: string): boolean {
+  return /diffusion-4-5/.test(model)
+}
+
+const GRID_CELL_CENTERS = [0.1, 0.3, 0.5, 0.7, 0.9]
+/** V4/V4.5 only ever receive 5x5 grid-cell centres (the web UI snaps with floor(5x)) */
+export function snapToGrid(v: number): number {
+  return GRID_CELL_CENTERS[Math.min(4, Math.max(0, Math.floor(v * 5)))]
 }
 
 export function resolveSize(size: UserRequest['size']): [number, number] {
@@ -124,7 +141,7 @@ export function resolveSize(size: UserRequest['size']): [number, number] {
 }
 
 export function resolvePosition(pos: UserCharacter['position']): { x: number; y: number } {
-  if (!pos) return { x: 0.5, y: 0.5 }
+  if (pos === undefined || pos === null) return { x: 0.5, y: 0.5 }
   if (typeof pos === 'string') {
     const m = pos.trim().toUpperCase().match(/^([A-E])([1-5])$/)
     if (!m) throw new Error(`Invalid position preset: ${pos}`)
@@ -133,7 +150,10 @@ export function resolvePosition(pos: UserCharacter['position']): { x: number; y:
     return { x: (col - 0.5) / 5, y: (row - 0.5) / 5 }
   }
   const [x, y] = pos
-  return { x: Number(x), y: Number(y) }
+  const nx = Number(x)
+  const ny = Number(y)
+  if (!(nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1)) throw new Error(`Position coordinates must be within 0.0-1.0: ${JSON.stringify(pos)}`)
+  return { x: nx, y: ny }
 }
 
 export function randomSeed(): number {
@@ -235,16 +255,25 @@ export async function convertRequest(input: UserRequest, ctx: ConvertContext): P
   const prompt = quality ? req.prompt + QUALITY_TAGS : req.prompt
   const negative = (req.negative_prompt ?? d.negative_prompt ?? '') + UC_PRESETS[ucPreset]
 
-  const characters = (req.characters ?? []).map((c) => ({
-    prompt: c.prompt,
-    uc: c.negative_prompt ?? '',
-    center: resolvePosition(c.position),
-    enabled: c.enabled ?? true
-  }))
+  if (!isV4(model) && req.characters?.length) throw new Error(`"characters" (multi-character prompts) require a V4/V4.5/V5 model, got ${model}`)
+  if (!isV45(model) && req.character_references?.length) throw new Error(`"character_references" are only supported on V4.5 models, got ${model}`)
+  if (isV5(model) && req.controlnet?.images?.length) throw new Error('Vibe Transfer ("controlnet") is not supported on V5 models')
+  if (!isV5(model) && (req.straight_alpha || req.tag_hint_transparent_background)) throw new Error('"straight_alpha" / "tag_hint_transparent_background" are V5-only options')
+
+  const v5 = isV5(model)
+  const characters = (req.characters ?? []).map((c) => {
+    const hasPos = c.position !== undefined && c.position !== null
+    const raw = resolvePosition(c.position)
+    // V5 accepts free-form positions; V4/V4.5 only know the 5x5 grid
+    const center = v5 || !hasPos ? raw : { x: snapToGrid(raw.x), y: snapToGrid(raw.y) }
+    return { prompt: c.prompt, uc: c.negative_prompt ?? '', center, enabled: c.enabled ?? true, hasPos }
+  })
   const enabledChars = characters.filter((c) => c.enabled)
+  // The API ignores centres unless use_coords is set; leave placement to the AI when nobody has a position
+  const useCoords = enabledChars.some((c) => c.hasPos)
 
   const params: Record<string, unknown> = {
-    params_version: 3,
+    params_version: v5 ? 4 : 3,
     width,
     height,
     scale: req.scale ?? d.scale,
@@ -267,13 +296,15 @@ export async function convertRequest(input: UserRequest, ctx: ConvertContext): P
     skip_cfg_above_sigma: (req.variety_boost ?? d.variety_boost) ? 58 : null,
     deliberate_euler_ancestral_bug: false,
     prefer_brownian: true,
-    use_coords: false,
+    use_coords: useCoords,
     normalize_reference_strength_multiple: false,
     seed,
     negative_prompt: negative,
-    characterPrompts: characters
+    characterPrompts: characters.map(({ prompt: cp, uc, center, enabled }) => ({ prompt: cp, uc, center, enabled }))
   }
   if (req.image_format) params.image_format = req.image_format
+  if (req.straight_alpha) params.straight_alpha = true
+  if (req.tag_hint_transparent_background) params.tag_hint_transparent_background = true
 
   if (isV4(model)) {
     params.v4_prompt = {
@@ -281,7 +312,7 @@ export async function convertRequest(input: UserRequest, ctx: ConvertContext): P
         base_caption: prompt,
         char_captions: enabledChars.map((c) => ({ char_caption: c.prompt, centers: [c.center] }))
       },
-      use_coords: false,
+      use_coords: useCoords,
       use_order: true
     }
     params.v4_negative_prompt = {

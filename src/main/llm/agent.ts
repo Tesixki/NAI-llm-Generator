@@ -21,6 +21,7 @@ const BASE_SYSTEM = `あなたは NovelAI (Diffusion V4/V4.5) 向けの画像生
 - 出力は必ず 1 つの JSON オブジェクト。
 - prompt は英語の Danbooru タグ列。説明文は書かない。
 - ユーザーが枚数・サイズ・モデル等を指定した場合はそれを反映し、指定がなければフォーマットのデフォルトに従う。
+- モデル: nai-diffusion-5-full / nai-diffusion-5-curated (V5: 座標は自由指定可、Vibe Transfer 不可、透過出力 straight_alpha / tag_hint_transparent_background 対応)、nai-diffusion-4-5-full / nai-diffusion-4-5-curated (V4.5: キャラクター参照可)、nai-diffusion-4-full / -curated、nai-diffusion-3。
 - 複数パターンが求められた場合は "requests" 配列を使ったバッチ形式にする。`
 
 const SUBMIT_INSTRUCTION_API = `\n## 提出方法\n最終 JSON は必ず \`submit_request\` ツールで提出してください (request 引数に JSON オブジェクトをそのまま渡す)。テキストで JSON を書くだけでは受理されません。`

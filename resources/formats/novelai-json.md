@@ -38,7 +38,7 @@ description: NAI-json-to-gen 互換のリクエスト JSON。単一 / requests �
 |---|---|---|---|
 | `prompt` | string | **必須** | ベースプロンプト (Danbooru タグ列、英語) |
 | `negative_prompt` | string | `""` | ネガティブ。UC プリセットと結合される |
-| `model` | string | `nai-diffusion-4-5-full` | `nai-diffusion-4-5-full` / `nai-diffusion-4-5-curated` / `nai-diffusion-4-full` / `nai-diffusion-4-curated` / `nai-diffusion-3` |
+| `model` | string | (アプリ設定) | `nai-diffusion-5-full` / `nai-diffusion-5-curated` / `nai-diffusion-4-5-full` / `nai-diffusion-4-5-curated` / `nai-diffusion-4-full` / `nai-diffusion-4-curated` / `nai-diffusion-3` |
 | `size` | string \| [w,h] | `portrait` | `portrait`(832×1216) / `landscape`(1216×832) / `square`(1024×1024) / `large_portrait`(1024×1536) / `large_landscape`(1536×1024) または `[幅, 高さ]` (64 の倍数) |
 | `steps` | int | 23 | 1〜50。推奨 23〜28 |
 | `scale` | float | 5.0 | CFG。3〜5 柔軟、6〜10 厳密 |
@@ -50,8 +50,19 @@ description: NAI-json-to-gen 互換のリクエスト JSON。単一 / requests �
 | `uc_preset` | string | `light` | `strong` / `light` / `human_focus` / `furry_focus` / `none` |
 | `cfg_rescale` | float | 0.0 | 0.0〜1.0 |
 | `variety_boost` | bool | false | 多様性ブースト |
+| `straight_alpha` | bool | false | **V5 のみ**: ストレートアルファで出力 |
+| `tag_hint_transparent_background` | bool | false | **V5 のみ**: 透過背景ヒント |
 
-## キャラクター配置 (`characters`, V4/V4.5)
+### モデル別の対応
+
+| 機能 | V5 | V4.5 | V4 | V3 |
+|---|---|---|---|---|
+| `characters` (複数キャラ配置) | ○ (座標は自由指定) | ○ (5×5 グリッドにスナップ) | ○ (同左) | × |
+| `character_references` | × | ○ | × | × |
+| `controlnet` (Vibe Transfer) | × | ○ | ○ | ○ |
+| `straight_alpha` / 透過ヒント | ○ | × | × | × |
+
+## キャラクター配置 (`characters`, V4/V4.5/V5)
 
 複数人のとき、各キャラクターを個別に記述する。`prompt` 内の人数タグ (`2girls` など) と要素数を一致させる。
 
@@ -59,7 +70,7 @@ description: NAI-json-to-gen 互換のリクエスト JSON。単一 / requests �
 |---|---|---|
 | `prompt` | string | キャラクター固有タグ (名前, 版権, 画角, 外見, 服装, 行動) |
 | `negative_prompt` | string | 任意 |
-| `position` | `"A1"`〜`"E5"` または `[x, y]` (0.0〜1.0) | 省略時は中央 `C3`。列 A〜E が左→右、行 1〜5 が上→下。横長なら左右 (`B3`, `D3`)、縦長なら上下に分ける |
+| `position` | `"A1"`〜`"E5"` または `[x, y]` (0.0〜1.0) | 省略時は配置を AI に任せる (use_coords 無効)。列 A〜E が左→右、行 1〜5 が上→下。横長なら左右 (`B3`, `D3`)、縦長なら上下に分ける。V4/V4.5 では 5×5 グリッド中心にスナップ、V5 はそのまま送信 |
 | `enabled` | bool | 省略時 true |
 
 ## 参照画像 (指示にファイルパスがある場合のみ)

@@ -23,7 +23,7 @@ LLM エージェント ──▶ MCP ツール呼び出し (内蔵 danbooru: sea
   - Devin CLI (`devin --print --prompt-file ...`。MCP 設定は一時ワークスペースの `.devin/mcp_config.json` に自動生成)
 - **MCP クライアント内蔵**: `mcpServers` 形式 (Claude Desktop と同じ) で stdio / Streamable HTTP サーバーを登録。内蔵の Danbooru ツールサーバーをデフォルトで有効化、`@gamzadongza/danbooru-tags-mcp` (Smithery) と `syou6162/novelai-mcp` を無効状態で同梱。
 - **スキル / フォーマット**: `skills/*.md` (または `skills/<name>/SKILL.md`) と `formats/*.md` をチェックボックスで選択してシステムプロンプトに注入。
-- **NovelAI 生成器内蔵**: V4 / V4.5 のキャラクター配置 (`characters` + `position`)、キャラクターリファレンス、Vibe Transfer (`.naiv4vibe` の埋め込みエンコード再利用)、img2img / inpaint、`requests` バッチ、UC プリセット、品質タグ。
+- **NovelAI 生成器内蔵**: V5 / V4.5 / V4 対応 (V5 は params_version 4、自由座標、透過出力)。キャラクター配置 (`characters` + `position`)、キャラクターリファレンス、Vibe Transfer (`.naiv4vibe` の埋め込みエンコード再利用)、img2img / inpaint、`requests` バッチ、UC プリセット、品質タグ。
 - **JSON エディタ**: LLM が出した JSON を手で直して再生成、ファイルの開閉、「JSON を修正」で LLM に差分修正させる。
 - **ギャラリー / 履歴**: 生成画像と使用 JSON を保存し、あとから JSON を読み戻せる。
 - API キーは Electron `safeStorage` で暗号化して保存。
