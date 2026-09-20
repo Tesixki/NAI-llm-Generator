@@ -1,0 +1,24 @@
+appId: dev.tesixki.nai-llm-generator
+productName: NAI LLM Generator
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+extraResources:
+  - from: resources
+    to: resources
+# asar is disabled so the CLI providers can spawn out/main/danbooru-mcp-stdio.js with ELECTRON_RUN_AS_NODE
+asar: false
+win:
+  target:
+    - nsis
+    - portable
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+mac:
+  target: dmg
+linux:
+  target: AppImage
