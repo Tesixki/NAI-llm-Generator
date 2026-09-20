@@ -37,11 +37,9 @@ export class CliProvider implements LLMProvider {
     }
   }
 
-  private claudeArgs(ctx: ProviderRunContext, work: string): { args: string[]; stdin: string; cwd: string } {
-    const sysFile = path.join(work, 'system.md')
-    fs.writeFileSync(sysFile, ctx.systemPrompt, 'utf-8')
-    const mcpFile = path.join(work, 'mcp.json')
-    const servers: Record<string, unknown> = {}
+  /** Enabled MCP servers in the common {command,args,env}/{url} shape (builtin danbooru → electron-as-node stdio) */
+  private mcpServerEntries(): Record<string, Record<string, unknown>> {
+    const servers: Record<string, Record<string, unknown>> = {}
     for (const [name, s] of Object.entries(this.appCfg.mcpServers)) {
       if (s.enabled === false) continue
       if (s.type === 'builtin') {
@@ -59,6 +57,14 @@ export class CliProvider implements LLMProvider {
         servers[name] = { type: 'stdio', command: s.command, args: (s.args ?? []).map((a) => resolvePlaceholders(a, this.appCfg)), env }
       }
     }
+    return servers
+  }
+
+  private claudeArgs(ctx: ProviderRunContext, work: string): { args: string[]; stdin: string; cwd: string } {
+    const sysFile = path.join(work, 'system.md')
+    fs.writeFileSync(sysFile, ctx.systemPrompt, 'utf-8')
+    const mcpFile = path.join(work, 'mcp.json')
+    const servers = this.mcpServerEntries()
     fs.writeFileSync(mcpFile, JSON.stringify({ mcpServers: servers }, null, 2), 'utf-8')
     const allowed = Object.keys(servers).map((n) => `mcp__${n}`)
     const args = [
@@ -86,10 +92,27 @@ export class CliProvider implements LLMProvider {
   }
 
   private devinArgs(ctx: ProviderRunContext, work: string): { args: string[]; stdin: string; cwd: string } {
-    // Devin CLI has no system-prompt flag; MCP servers are configured via `devin mcp` beforehand.
+    // Devin CLI has no system-prompt flag: the system prompt is embedded at the top of the prompt file.
+    // MCP servers are passed through the project-level config (<cwd>/.devin/mcp_config.json).
     const promptFile = path.join(work, 'prompt.md')
-    fs.writeFileSync(promptFile, `${ctx.systemPrompt}\n\n---\n\n# ユーザーの指示\n\n${ctx.userPrompt}\n`, 'utf-8')
-    const args = ['--print', '--prompt-file', promptFile, '--permission-mode', 'bypass', '--respect-workspace-trust', 'false']
+    fs.writeFileSync(promptFile, `${ctx.systemPrompt}
+
+---
+
+# ユーザーの指示
+
+${ctx.userPrompt}
+`, 'utf-8')
+    const devinDir = path.join(work, '.devin')
+    fs.mkdirSync(devinDir, { recursive: true })
+    const servers: Record<string, Record<string, unknown>> = {}
+    for (const [name, s] of Object.entries(this.mcpServerEntries())) {
+      const { type, ...rest } = s
+      servers[name] = { ...rest, transport: type === 'http' ? 'http' : 'stdio' }
+    }
+    fs.writeFileSync(path.join(devinDir, 'mcp_config.json'), JSON.stringify({ mcpServers: servers }, null, 2), 'utf-8')
+    // "dangerous" auto-approves every tool call; print mode cannot show approval prompts.
+    const args = ['--print', '--prompt-file', promptFile, '--permission-mode', 'dangerous', '--respect-workspace-trust', 'false']
     if (this.cli.model) args.push('--model', this.cli.model)
     return { args, stdin: '', cwd: work }
   }

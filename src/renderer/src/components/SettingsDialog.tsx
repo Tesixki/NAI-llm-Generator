@@ -123,7 +123,7 @@ export function SettingsDialog({ cfg, mcp, onClose, onSave }: Props): React.JSX.
 
               <h3>Devin CLI</h3>
               <p className="muted">
-                <code>devin --print --prompt-file</code> で実行します。MCP サーバーは事前に <code>devin mcp</code> で登録してください (システムプロンプトはプロンプト先頭に埋め込まれます)。
+                <code>devin --print --prompt-file ... --permission-mode dangerous</code> で実行します。MCP サーバーは一時ワークスペースの <code>.devin/mcp_config.json</code> に自動で書き出されます (システムプロンプトはプロンプト先頭に埋め込み)。事前に <code>devin login</code> が必要です。
               </p>
               <Field label="コマンド">
                 <input value={draft.devinCli.command} onChange={(e) => setSub('devinCli', { command: e.target.value })} placeholder="devin" />

@@ -8,7 +8,7 @@ LLM (Claude API / OpenAI 互換 API / Claude Code CLI / Devin CLI) に **スキ�
    │  + スキル .md (プロンプト規約 / 調査手順)
    │  + フォーマット .md (JSON 仕様)
    ▼
-LLM エージェント ──▶ MCP ツール呼び出し (danbooru-tags: get_character_tags / get_wiki_info / get_post_tags, novelai-mcp ...)
+LLM エージェント ──▶ MCP ツール呼び出し (内蔵 danbooru: search_tags / get_wiki_info / get_character_tags / get_post_tags, novelai-mcp ...)
    │
    ▼
 生成 JSON (NAI-json-to-gen 互換) ──▶ NovelAI /ai/generate-image ──▶ 画像 + JSON を出力フォルダに保存
@@ -20,8 +20,8 @@ LLM エージェント ──▶ MCP ツール呼び出し (danbooru-tags: get_c
   - Claude API (`@anthropic-ai/sdk`、tool use でアプリ内から MCP を呼ぶ)
   - OpenAI 互換 API (OpenAI / OpenRouter / LM Studio / Ollama / vLLM。function calling で MCP を呼ぶ)
   - Claude Code CLI (`claude -p --mcp-config ...` を非対話実行。MCP 設定は自動で渡す)
-  - Devin CLI (`devin --print --prompt-file ...`。MCP は `devin mcp` で事前登録)
-- **MCP クライアント内蔵**: `mcpServers` 形式 (Claude Desktop と同じ) で stdio / Streamable HTTP サーバーを登録。デフォルトで `@gamzadongza/danbooru-tags-mcp` を有効化、`syou6162/novelai-mcp` を無効状態で同梱。
+  - Devin CLI (`devin --print --prompt-file ...`。MCP 設定は一時ワークスペースの `.devin/mcp_config.json` に自動生成)
+- **MCP クライアント内蔵**: `mcpServers` 形式 (Claude Desktop と同じ) で stdio / Streamable HTTP サーバーを登録。内蔵の Danbooru ツールサーバーをデフォルトで有効化、`@gamzadongza/danbooru-tags-mcp` (Smithery) と `syou6162/novelai-mcp` を無効状態で同梱。
 - **スキル / フォーマット**: `skills/*.md` (または `skills/<name>/SKILL.md`) と `formats/*.md` をチェックボックスで選択してシステムプロンプトに注入。
 - **NovelAI 生成器内蔵**: V4 / V4.5 のキャラクター配置 (`characters` + `position`)、キャラクターリファレンス、Vibe Transfer (`.naiv4vibe` の埋め込みエンコード再利用)、img2img / inpaint、`requests` バッチ、UC プリセット、品質タグ。
 - **JSON エディタ**: LLM が出した JSON を手で直して再生成、ファイルの開閉、「JSON を修正」で LLM に差分修正させる。
@@ -43,6 +43,7 @@ npm run dist:win   # Windows インストーラ / portable (release/)
 - NovelAI の Persistent API Token (`pst-...`)
 - いずれかの LLM: Anthropic API キー / OpenAI 互換エンドポイント / `claude` CLI / `devin` CLI
 - (任意) `uv` — 同梱の NovelAI MCP を有効化する場合
+- Devin CLI を使う場合: PowerShell で `irm https://static.devin.ai/cli/setup.ps1 | iex` → `devin login`
 
 初回起動後 `⚙ 設定` から API キーと出力フォルダを設定してください。
 
@@ -76,11 +77,12 @@ description: 一覧に出る説明
 
 ```json
 {
-  "danbooru-tags": {
+  "danbooru": { "type": "builtin", "enabled": true },
+  "danbooru-tags-smithery": {
     "type": "stdio",
     "command": "npx",
     "args": ["-y", "@smithery/cli@latest", "run", "@gamzadongza/danbooru-tags-mcp"],
-    "enabled": true
+    "enabled": false
   },
   "novelai": {
     "type": "stdio",
@@ -96,6 +98,9 @@ description: 一覧に出る説明
 `${NOVELAI_API_KEY}` `${OUTPUT_DIR}` `${ANTHROPIC_API_KEY}` `${OPENAI_API_KEY}` は設定値に置換されます。
 ツール名は LLM には `<server>__<tool>` (Claude Code CLI では `mcp__<server>__<tool>`) として見えます。
 
+`"type": "builtin"` の `danbooru` はアプリ内蔵の Danbooru ツール (`search_tags` / `get_wiki_info` / `get_character_tags` / `get_post_tags` / `get_post_count`) で、
+danbooru.donmai.us をこの PC から直接呼びます (Smithery 等のホスト型 MCP は Danbooru 側に 403 で弾かれるため)。CLI バックエンドには `out/main/danbooru-mcp-stdio.js` を `ELECTRON_RUN_AS_NODE=1` の Electron で起動する stdio サーバーとして渡されます。
+
 ## LLM バックエンドごとの注意
 
 | バックエンド | MCP の呼び方 | 備考 |
@@ -103,7 +108,7 @@ description: 一覧に出る説明
 | Claude API | アプリが tool use を仲介 | `submit_request` ツールで JSON を受け取る |
 | OpenAI 互換 | アプリが function calling を仲介 | tools 非対応サーバーでは本文の ```json ブロックから抽出 |
 | Claude Code CLI | CLI が直接 MCP を起動 | `--mcp-config` に一時ファイルを渡す。Bash/Edit/Write は禁止して実行 |
-| Devin CLI | CLI 側の設定 (`devin mcp`) | `--permission-mode bypass` で実行。回答末尾の ```json ブロックから抽出 |
+| Devin CLI | 一時ワークスペースの `.devin/mcp_config.json` を自動生成 | `--permission-mode dangerous` で実行 (print モードは承認プロンプトを出せないため)。回答末尾の ```json ブロックから抽出。事前に `devin login` |
 
 ## 構成
 

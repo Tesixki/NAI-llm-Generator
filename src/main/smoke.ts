@@ -1,11 +1,15 @@
 /**
  * Dev-only smoke test, enabled with NAI_SMOKE_DIR=<dir>:
  * waits for the UI + MCP, screenshots the window, calls one Danbooru tool, then quits.
+ * NAI_SMOKE_AGENT=<provider id> additionally runs one agent turn with that provider (no image generation).
  */
 import { app, type BrowserWindow } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { mcpManager } from './mcp/manager'
+import { loadConfig } from './config'
+import { runAgent } from './llm/agent'
+import type { ProviderId } from '@shared/types'
 
 export async function runSmoke(win: BrowserWindow, mcpReady: Promise<void>): Promise<void> {
   const dir = process.env.NAI_SMOKE_DIR
@@ -29,6 +33,21 @@ export async function runSmoke(win: BrowserWindow, mcpReady: Promise<void>): Pro
     if (chara) {
       const res = await mcpManager.callTool(chara.id, { character_tag: 'arona_(blue_archive)', num_posts: 30, top_n: 15 })
       console.log(`[smoke] get_character_tags isError=${res.isError}\n${res.text.slice(0, 600)}`)
+    }
+    const providerId = process.env.NAI_SMOKE_AGENT as ProviderId | undefined
+    if (providerId) {
+      const cfg = { ...loadConfig(), provider: providerId }
+      const res = await runAgent({
+        cfg,
+        request: {
+          instruction: process.env.NAI_SMOKE_INSTRUCTION ?? 'ブルーアーカイブのアロナの立ち絵を 1 枚。教室、窓際、笑顔。JSON だけ作ってください。',
+          skillIds: ['novelai-prompt-rules', 'danbooru-research'],
+          formatId: 'novelai-json-minimal'
+        },
+        signal: new AbortController().signal,
+        emit: (ev) => console.log('[smoke:agent]', JSON.stringify(ev).slice(0, 400))
+      })
+      console.log('[smoke] agent result json:', JSON.stringify(res.json, null, 2))
     }
   } catch (e) {
     console.error('[smoke] failed:', e)
