@@ -1,4 +1,5 @@
 import { app, shell } from 'electron'
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { SkillInfo } from '@shared/types'
@@ -12,7 +13,18 @@ export function bundledResourcesDir(): string {
   return candidates.find((c) => fs.existsSync(c)) ?? candidates[0]
 }
 
-/** Copy bundled defaults into the user dirs on first run (never overwrites user files) */
+const MANIFEST = '.bundled.json'
+
+function sha1(buf: Buffer): string {
+  return createHash('sha1').update(buf).digest('hex')
+}
+
+/**
+ * Copy bundled defaults into the user dirs.
+ * A file is (re)written when it does not exist yet, or when the user's copy is byte-identical to
+ * the version we copied last time (tracked in .bundled.json) - i.e. the user never edited it.
+ * Files the user modified are left alone.
+ */
 export function ensureDefaultSkills(): void {
   const cfg = loadConfig()
   const pairs: Array<[string, string]> = [
@@ -23,12 +35,32 @@ export function ensureDefaultSkills(): void {
     const src = path.join(bundledResourcesDir(), sub)
     fs.mkdirSync(dest, { recursive: true })
     if (!fs.existsSync(src)) continue
+    const manifestPath = path.join(dest, MANIFEST)
+    let manifest: Record<string, string> = {}
+    try {
+      manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'))
+    } catch {
+      /* first run or pre-manifest install */
+    }
     for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+      if (!entry.isFile()) continue
       const from = path.join(src, entry.name)
       const to = path.join(dest, entry.name)
-      if (fs.existsSync(to)) continue
-      fs.cpSync(from, to, { recursive: true })
+      const bundled = fs.readFileSync(from)
+      const bundledHash = sha1(bundled)
+      if (fs.existsSync(to)) {
+        const currentHash = sha1(fs.readFileSync(to))
+        if (currentHash === bundledHash) {
+          manifest[entry.name] = bundledHash
+          continue
+        }
+        // only overwrite if the user's copy is exactly what we shipped before
+        if (manifest[entry.name] !== currentHash) continue
+      }
+      fs.writeFileSync(to, bundled)
+      manifest[entry.name] = bundledHash
     }
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8')
   }
 }
 

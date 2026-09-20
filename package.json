@@ -1,6 +1,6 @@
 {
   "name": "nai-llm-generator",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "LLM + MCP (Danbooru / NovelAI) driven NovelAI image generator desktop app",
   "main": "./out/main/index.js",
   "author": "Tesixki",
