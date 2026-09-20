@@ -4,7 +4,9 @@ import { resolve } from 'path'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // @modelcontextprotocol/sdk and zod are bundled (not externalized) so that
+    // out/main/danbooru-mcp-stdio.js can run from app.asar.unpacked without node_modules.
+    plugins: [externalizeDepsPlugin({ exclude: ['@modelcontextprotocol/sdk', 'zod'] })],
     resolve: { alias: { '@shared': resolve('src/shared') } },
     build: {
       rollupOptions: {

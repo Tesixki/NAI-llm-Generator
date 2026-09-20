@@ -46,7 +46,7 @@ export class CliProvider implements LLMProvider {
         servers[name] = {
           type: 'stdio',
           command: process.execPath,
-          args: [path.join(__dirname, 'danbooru-mcp-stdio.js')],
+          args: [path.join(__dirname.replace(/app\.asar([\\/])/, 'app.asar.unpacked$1'), 'danbooru-mcp-stdio.js')],
           env: { ELECTRON_RUN_AS_NODE: '1', DANBOORU_LOGIN: this.appCfg.danbooru.login, DANBOORU_API_KEY: this.appCfg.danbooru.apiKey }
         }
       } else if (s.type === 'http' || (s.url && !s.command)) {

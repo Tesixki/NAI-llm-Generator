@@ -9,8 +9,12 @@ files:
 extraResources:
   - from: resources
     to: resources
-# asar is disabled so the CLI providers can spawn out/main/danbooru-mcp-stdio.js with ELECTRON_RUN_AS_NODE
-asar: false
+asar: true
+# The stdio Danbooru server is spawned with ELECTRON_RUN_AS_NODE by the CLI providers,
+# so it (and its shared chunks) must exist as real files outside the asar archive.
+asarUnpack:
+  - out/main/danbooru-mcp-stdio.js
+  - out/main/chunks/**
 win:
   target:
     - nsis
